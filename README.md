@@ -32,12 +32,13 @@ IV và làm lộ cấu trúc ảnh nên chỉ dùng để minh họa.
 
 ## Giao diện
 
-5 tab: **Trang chủ** · **Mã hóa & Giải mã ảnh** · **Benchmark S-box** ·
-**So sánh S-box** · **Benchmark ảnh mã hóa**.
+5 tab: **Trang chủ** · **Mã hóa & Giải mã ảnh** · **Đánh giá S-box** ·
+**So sánh S-box** · **Đánh giá ảnh mã hóa**.
 
 - Mã hóa/giải mã với CBC hoặc ECB, xem trước ảnh, tự đối chiếu ảnh gốc sau khi giải mã.
-- Benchmark S-box: bảng 16×16 (hex/thập phân), sao chép TSV; so sánh 4 S-box kèm biểu đồ.
-- Benchmark ảnh: entropy, tương quan, GLCM, NPCR/UACI, histogram, ECB vs CBC, độ nhạy.
+- Đánh giá S-box: bảng 16×16 (hex/thập phân), sao chép TSV; so sánh 4 S-box kèm biểu đồ.
+- Đánh giá ảnh: entropy, tương quan (ngang/dọc/chéo), GLCM, NPCR/UACI, histogram,
+  ECB vs CBC, độ nhạy.
 - Tác vụ nặng chạy nền (QThread) với thanh tiến trình và nút Huỷ.
 - Xuất báo cáo TXT/CSV/JSON, nút Mở thư mục; giao diện mở maximized.
 - Phím tắt: `F11` toàn màn hình, `Esc` thu nhỏ, `F1` danh sách phím tắt, `Ctrl+H` Trang chủ.

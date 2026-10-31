@@ -1,4 +1,4 @@
-"""Tab benchmark chất lượng ảnh mã hóa."""
+"""Tab đánh giá chất lượng ảnh mã hóa."""
 from __future__ import annotations
 
 import os
@@ -254,7 +254,7 @@ class ImageBenchmarkTab(ImageDropMixin, QWidget):
 
         charts = QWidget()
         charts_layout = QVBoxLayout(charts)
-        self.figure = Figure(figsize=(7.5, 5.0), dpi=100)
+        self.figure = Figure(figsize=(7.5, 7.2), dpi=100, layout="constrained")
         self.figure.text(0.5, 0.5, "Chạy đánh giá ảnh để xem biểu đồ...",
                          ha="center", va="center", color=theme.PLACEHOLDER)
         self.canvas = FigureCanvasQTAgg(self.figure)
@@ -372,32 +372,62 @@ class ImageBenchmarkTab(ImageDropMixin, QWidget):
         ax.grid(alpha=0.2)
 
     @staticmethod
-    def _plot_correlation(ax, image: np.ndarray, title: str, color: str) -> None:
+    def _correlation_pairs(gray: np.ndarray, direction: str, samples: int = 3000):
+        """Lấy các cặp điểm ảnh lân cận theo hướng ngang/dọc/chéo."""
+        height, width = gray.shape
+        rng = np.random.default_rng(7)
+        if direction == "vertical":
+            ys = rng.integers(0, height - 1, samples)
+            xs = rng.integers(0, width, samples)
+            return gray[ys, xs], gray[ys + 1, xs], "p(x, y)", "p(x+1, y)"
+        if direction == "diagonal":
+            ys = rng.integers(0, height - 1, samples)
+            xs = rng.integers(0, width - 1, samples)
+            return gray[ys, xs], gray[ys + 1, xs + 1], "p(x, y)", "p(x+1, y+1)"
+        ys = rng.integers(0, height, samples)
+        xs = rng.integers(0, width - 1, samples)
+        return gray[ys, xs], gray[ys, xs + 1], "p(x, y)", "p(x, y+1)"
+
+    @classmethod
+    def _plot_correlation(cls, ax, image: np.ndarray, title: str, color: str,
+                          direction: str = "horizontal") -> None:
         gray = image if image.ndim == 2 else image[..., 0]
         height, width = gray.shape
-        if height < 1 or width < 2:
+        if height < 2 or width < 2:
             return
-        rng = np.random.default_rng(7)
-        ys = rng.integers(0, height, 3000)
-        xs = rng.integers(0, width - 1, 3000)
-        ax.scatter(gray[ys, xs], gray[ys, xs + 1], s=2, color=color, alpha=0.5,
-                   linewidths=0)
-        ax.set_title(title, fontsize=10)
+        first, second, xlabel, ylabel = cls._correlation_pairs(gray, direction)
+        ax.scatter(first, second, s=2, color=color, alpha=0.5, linewidths=0)
+        ax.set_title(title, fontsize=9)
         ax.set_xlim(0, 255)
         ax.set_ylim(0, 255)
-        ax.set_xlabel("p(x, y)", fontsize=8)
-        ax.set_ylabel("p(x, y+1)", fontsize=8)
+        ax.set_xlabel(xlabel, fontsize=7)
+        ax.set_ylabel(ylabel, fontsize=7)
+        ax.tick_params(labelsize=7)
         ax.grid(alpha=0.2)
 
     def _update_charts(self, original: np.ndarray, encrypted: np.ndarray) -> None:
         self.figure.clear()
-        axes = self.figure.subplots(2, 2)
-        self._plot_histogram(axes[0, 0], original, "Histogram — ảnh gốc")
-        self._plot_histogram(axes[0, 1], encrypted, "Histogram — ảnh mã hóa")
-        self._plot_correlation(axes[1, 0], original, "Tương quan ngang — ảnh gốc", "#2a78d6")
-        self._plot_correlation(axes[1, 1], encrypted, "Tương quan ngang — ảnh mã hóa",
-                               "#e08a2a")
-        self.figure.tight_layout()
+        outer = self.figure.add_gridspec(2, 1, height_ratios=[1, 2.4])
+        top = outer[0].subgridspec(1, 2)
+        bottom = outer[1].subgridspec(2, 3)
+
+        self._plot_histogram(self.figure.add_subplot(top[0]), original,
+                             "Histogram — ảnh gốc")
+        self._plot_histogram(self.figure.add_subplot(top[1]), encrypted,
+                             "Histogram — ảnh mã hóa")
+
+        directions = (("horizontal", "Ngang"), ("vertical", "Dọc"),
+                      ("diagonal", "Chéo"))
+        for column, (key, label) in enumerate(directions):
+            self._plot_correlation(
+                self.figure.add_subplot(bottom[0, column]), original,
+                f"Ảnh gốc — {label}", "#2a78d6", key,
+            )
+            self._plot_correlation(
+                self.figure.add_subplot(bottom[1, column]), encrypted,
+                f"Ảnh mã hóa — {label}", "#e08a2a", key,
+            )
+
         self.canvas.draw_idle()
 
     @staticmethod

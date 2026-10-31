@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from .settings import last_dir, remember_dir
 
-APP_NAME = "Mordell S-box — Mã hóa ảnh & Benchmark"
+APP_NAME = "Mordell S-box — Mã hóa ảnh & Đánh giá"
 
 
 def timestamp() -> str:

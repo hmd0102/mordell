@@ -1,4 +1,4 @@
-"""Tab benchmark chất lượng S-box."""
+"""Tab đánh giá chất lượng S-box."""
 from __future__ import annotations
 
 import time
@@ -27,6 +27,7 @@ from metrics import sbox_metrics as sm
 from reference import REFERENCE_SBOXES
 from .. import theme
 from ..export import APP_NAME, export_report, format_table, timestamp
+from ..widgets import SboxGrid
 
 DEFAULT_KEY = "day-la-mot-khoa-bi-mat-vi-du"
 REFERENCE_NAMES = {"aes": "AES", "weierstrass": "Weierstrass", "chaos": "Hỗn loạn"}
@@ -75,7 +76,7 @@ class SboxBenchmarkTab(QWidget):
         layout.addLayout(row)
 
         row = QHBoxLayout()
-        self.btn_run = QPushButton("Chạy Benchmark S-box")
+        self.btn_run = QPushButton("Chạy đánh giá S-box")
         self.btn_run.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
         self.btn_run.clicked.connect(self.handle_run)
         theme.mark_primary(self.btn_run)
@@ -113,32 +114,30 @@ class SboxBenchmarkTab(QWidget):
         table_controls.addWidget(self.btn_copy)
         group_sbox_layout.addLayout(table_controls)
 
-        self.sbox_table = QTableWidget(16, 16)
-        self.sbox_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.sbox_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self.sbox_table.setHorizontalHeaderLabels([f"{c:X}" for c in range(16)])
-        self.sbox_table.setVerticalHeaderLabels([f"{r:X}" for r in range(16)])
-        self.sbox_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.sbox_table.verticalHeader().setDefaultSectionSize(24)
-        group_sbox_layout.addWidget(self.sbox_table)
+        self.sbox_table = SboxGrid()
+        group_sbox_layout.addWidget(self.sbox_table, 1)
 
         group_metrics = QGroupBox("Chỉ số đánh giá")
+        group_metrics.setMinimumWidth(330)
         group_metrics_layout = QVBoxLayout(group_metrics)
         self.metrics_table = QTableWidget(0, 2)
         self.metrics_table.setHorizontalHeaderLabels(["Chỉ số", "Giá trị"])
         self.metrics_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.metrics_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.metrics_table.setAlternatingRowColors(True)
+        self.metrics_table.setWordWrap(False)
         header = self.metrics_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.metrics_table.verticalHeader().setVisible(False)
+        self.metrics_table.verticalHeader().setDefaultSectionSize(30)
         group_metrics_layout.addWidget(self.metrics_table)
 
         tables.addWidget(group_sbox)
         tables.addWidget(group_metrics)
-        tables.setStretchFactor(0, 3)
-        tables.setStretchFactor(1, 2)
-        tables.setSizes([620, 420])
+        tables.setStretchFactor(0, 5)
+        tables.setStretchFactor(1, 4)
+        tables.setSizes([600, 480])
         layout.addWidget(tables, 1)
 
     def _sync_controls(self) -> None:
@@ -172,12 +171,7 @@ class SboxBenchmarkTab(QWidget):
     def _fill_sbox_table(self, sbox: list[int]) -> None:
         self._last_sbox = list(sbox)
         hexa = self.format_combo.currentData() == "hex"
-        for r in range(16):
-            for c in range(16):
-                value = sbox[r * 16 + c]
-                item = QTableWidgetItem(f"{value:02X}" if hexa else str(value))
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.sbox_table.setItem(r, c, item)
+        self.sbox_table.set_sbox(sbox, hexa)
 
     def _refresh_sbox_table(self) -> None:
         if self._last_sbox is not None:
@@ -186,7 +180,7 @@ class SboxBenchmarkTab(QWidget):
     def handle_copy(self) -> None:
         if self._last_sbox is None:
             QMessageBox.information(self, "Chưa có dữ liệu",
-                                    "Hãy chạy benchmark trước khi sao chép bảng S-box.")
+                                    "Hãy chạy đánh giá trước khi sao chép bảng S-box.")
             return
         hexa = self.format_combo.currentData() == "hex"
         fmt = (lambda v: f"{v:02X}") if hexa else str
@@ -226,7 +220,7 @@ class SboxBenchmarkTab(QWidget):
     def handle_export(self) -> bool:
         if self._last_sbox is None or self._last_result is None:
             QMessageBox.information(self, "Chưa có dữ liệu",
-                                    "Hãy chạy benchmark trước khi xuất báo cáo.")
+                                    "Hãy chạy đánh giá trước khi xuất báo cáo.")
             return
 
         sbox, result = self._last_sbox, self._last_result
@@ -283,7 +277,7 @@ class SboxBenchmarkTab(QWidget):
             self.info_label.setText(f"{title} — đánh giá trong {elapsed:.2f} s")
             self._status(f"Đã đánh giá: {title}")
         except Exception as exc:  # noqa: BLE001 - hiển thị mọi lỗi cho người dùng
-            self.info_label.setText("Chưa có dữ liệu benchmark.")
+            self.info_label.setText("Chưa có dữ liệu đánh giá.")
             QMessageBox.critical(self, "Lỗi", f"Không thể đánh giá S-box: {exc}")
         finally:
             QApplication.restoreOverrideCursor()

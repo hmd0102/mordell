@@ -9,13 +9,15 @@ from matplotlib.figure import Figure
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
+    QApplication,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSplitter,
+    QScrollArea,
     QStyle,
     QTableWidget,
     QTableWidgetItem,
@@ -34,6 +36,16 @@ from ..workers import TaskRunner
 DEFAULT_KEY = "day-la-mot-khoa-bi-mat-vi-du"
 REFERENCE_NAMES = {"aes": "AES", "weierstrass": "Weierstrass", "chaos": "Hỗn loạn"}
 COLUMNS = ["S-box", "NL", "SAC", "BIC-NL", "BIC-SAC", "LAP", "DAP"]
+
+#: Tooltip giải thích từng cột chỉ số
+COLUMN_HINTS = {
+    "NL": "Phi tuyến — cao hơn tốt hơn (tối ưu 112)",
+    "SAC": "SAC trung bình — lý tưởng 0,5",
+    "BIC-NL": "BIC phi tuyến trung bình — cao hơn tốt hơn (tối ưu 112)",
+    "BIC-SAC": "BIC-SAC — lý tưởng 0,5",
+    "LAP": "LAP — thấp hơn tốt hơn (tối ưu 0,0625)",
+    "DAP": "DAP — thấp hơn tốt hơn (tối ưu 4/256)",
+}
 
 # (tên khóa trong kết quả evaluate, chỉ số cột, hàm chọn "tốt nhất")
 # NL/BIC-NL càng cao càng tốt; SAC/BIC-SAC gần 0.5; LAP/DAP càng thấp càng tốt.
@@ -94,9 +106,9 @@ class SboxCompareTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
-        layout.addWidget(QLabel(
-            "<b>So sánh S-box đề xuất (Mordell) với AES, Weierstrass và Hỗn loạn</b>"
-        ))
+        title = QLabel("So sánh S-box đề xuất (Mordell) với AES, Weierstrass và Hỗn loạn")
+        title.setStyleSheet(f"color: {theme.BRAND}; font-size: 11pt; font-weight: 600;")
+        layout.addWidget(title)
 
         row = QHBoxLayout()
         row.addWidget(QLabel("Khóa (sinh S-box Mordell):"))
@@ -116,6 +128,11 @@ class SboxCompareTab(QWidget):
         self.btn_export.setEnabled(False)
         self.btn_export.clicked.connect(self.handle_export)
         row.addWidget(self.btn_export)
+        self.btn_copy = QPushButton("Sao chép bảng")
+        self.btn_copy.setToolTip("Sao chép bảng so sánh dạng TSV để dán vào Excel/báo cáo")
+        self.btn_copy.setEnabled(False)
+        self.btn_copy.clicked.connect(self.handle_copy)
+        row.addWidget(self.btn_copy)
         layout.addLayout(row)
 
         self.progress = TaskProgress()
@@ -131,31 +148,45 @@ class SboxCompareTab(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(False)
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         for column in range(1, len(COLUMNS)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+        for column, name in enumerate(COLUMNS):
+            item = self.table.horizontalHeaderItem(column)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                if column == 0
+                else Qt.AlignmentFlag.AlignCenter
+            )
+            if name in COLUMN_HINTS:
+                item.setToolTip(COLUMN_HINTS[name])
         self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(32)
+        self.table.verticalHeader().setDefaultSectionSize(36)
+        # Bảng chỉ có 4 dòng: cao vừa đủ, nhường chỗ cho biểu đồ
+        self.table.setFixedHeight(
+            self.table.horizontalHeader().sizeHint().height() + 4 * 36 + 8
+        )
 
-        self.figure = Figure(figsize=(7.5, 4.2), dpi=100)
+        self.figure = Figure(figsize=(7.5, 4.6), dpi=100, layout="constrained")
         self.figure.text(0.5, 0.5, "Chạy so sánh để xem biểu đồ cột...",
                          ha="center", va="center", color=theme.PLACEHOLDER)
         self.canvas = FigureCanvasQTAgg(self.figure)
         chart_panel = QWidget()
+        chart_panel.setMinimumHeight(430)
         chart_layout = QVBoxLayout(chart_panel)
         chart_layout.setContentsMargins(0, 0, 0, 0)
         chart_layout.addWidget(NavigationToolbar2QT(self.canvas, chart_panel))
         chart_layout.addWidget(self.canvas, 1)
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.setChildrenCollapsible(False)
-        splitter.addWidget(self.table)
-        splitter.addWidget(chart_panel)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 3)
-        splitter.setSizes([220, 360])
-        layout.addWidget(splitter, 1)
+        chart_scroll = QScrollArea()
+        chart_scroll.setWidgetResizable(True)
+        chart_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        chart_scroll.setWidget(chart_panel)
+
+        layout.addWidget(self.table)
+        layout.addWidget(chart_scroll, 1)
 
         self.note_label = QLabel("")
         self.note_label.setWordWrap(True)
@@ -172,11 +203,13 @@ class SboxCompareTab(QWidget):
     def _fill_table(self, rows: list[tuple[str, dict]]) -> None:
         self.table.setRowCount(len(rows))
 
-        # Chỉ số tốt nhất của từng cột
-        best_rows = {}
+        # Chỉ số tốt nhất của từng cột (có thể đồng hạng)
+        best_values = {}
+        column_scores = {}
         for column, (metric, score) in enumerate(_METRICS, start=1):
             scores = [score(result[metric]) for _, result in rows]
-            best_rows[column] = scores.index(max(scores))
+            column_scores[column] = scores
+            best_values[column] = max(scores)
 
         green = QColor("#1b5e20")
         mordell_bg = QColor("#e8f5e9")
@@ -199,7 +232,7 @@ class SboxCompareTab(QWidget):
                 )
                 if row_index == 0:
                     item.setBackground(mordell_bg)
-                if column > 0 and best_rows.get(column) == row_index:
+                if column > 0 and column_scores[column][row_index] == best_values[column]:
                     font = QFont(item.font())
                     font.setBold(True)
                     item.setFont(font)
@@ -208,30 +241,37 @@ class SboxCompareTab(QWidget):
                 self.table.setItem(row_index, column, item)
 
     def _update_chart(self, rows: list[tuple[str, dict]]) -> None:
-        labels = [label for label, _ in rows]
-        colors = ["#2e7d32" if index == 0 else "#78909c" for index in range(len(labels))]
+        short_labels = {
+            "Mordell (đề xuất)": "Mordell",
+            "AES": "AES",
+            "Weierstrass": "Weierstrass",
+            "Hỗn loạn": "Hỗn loạn",
+        }
+        labels = [short_labels.get(label, label) for label, _ in rows]
+        colors = ["#2e7d32" if index == 0 else "#90a4ae"
+                  for index in range(len(labels))]
 
         self.figure.clear()
         axes = self.figure.subplots(2, 2).ravel()
         for ax, (metric, title, fmt, ideal) in zip(axes, _CHART_SPECS):
             values = [result[metric] for _, result in rows]
-            bars = ax.bar(range(len(values)), values, color=colors,
-                          edgecolor="#37474f", linewidth=0.6)
+            bars = ax.bar(range(len(values)), values, color=colors, width=0.58)
             best = max(values) if metric in ("NL", "BIC_NL_avg") else min(values)
-            best_bar = bars[values.index(best)]
-            best_bar.set_edgecolor("#1b5e20")
-            best_bar.set_linewidth(2.2)
+            for bar, value in zip(bars, values):
+                if value == best:
+                    bar.set_edgecolor("#1b5e20")
+                    bar.set_linewidth(2.0)
             for bar, value in zip(bars, values):
                 ax.text(bar.get_x() + bar.get_width() / 2, value, fmt.format(value),
-                        ha="center", va="bottom", fontsize=7.5)
-            ax.axhline(ideal, color="#e53935", linestyle="--", linewidth=1)
-            ax.set_title(f"{title} (tối ưu {ideal:g})", fontsize=9.5)
+                        ha="center", va="bottom", fontsize=8)
+            ax.axhline(ideal, color="#e53935", linestyle="--", linewidth=0.9)
+            ax.set_title(f"{title} (tối ưu {ideal:g})", fontsize=9)
             ax.set_xticks(range(len(labels)))
-            ax.set_xticklabels(labels, fontsize=7.5, rotation=12)
-            ax.set_ylim(0, max(max(values), ideal) * 1.22)
-            ax.grid(axis="y", alpha=0.25)
+            ax.set_xticklabels(labels, fontsize=8)
+            ax.tick_params(axis="y", labelsize=8)
+            ax.set_ylim(0, max(max(values), ideal) * 1.18)
+            ax.grid(axis="y", alpha=0.2)
             ax.set_axisbelow(True)
-        self.figure.tight_layout()
         self.canvas.draw_idle()
 
     def runner_cancel(self) -> None:
@@ -256,14 +296,14 @@ class SboxCompareTab(QWidget):
             self._poly = poly
             self._key = self.key_edit.text()
             self.btn_export.setEnabled(True)
+            self.btn_copy.setEnabled(True)
             self.info_label.setText(
                 f"S-box Mordell: f(x) = {poly_to_str(poly)} (0x{poly:03X})"
                 f" — so sánh trong {time.perf_counter() - self._started:.2f} s"
             )
             self.note_label.setText(
-                "Ghi chú: NL, BIC-NL càng cao càng tốt; SAC, BIC-SAC lý tưởng 0.5;"
-                " LAP, DAP càng thấp càng tốt. Ô in đậm màu xanh là tốt nhất trong 4 S-box."
-                " Cột xanh lá trong biểu đồ là S-box Mordell, đường đứt đỏ là giá trị tối ưu."
+                "NL, BIC-NL: cao hơn tốt · SAC, BIC-SAC lý tưởng 0,5 · LAP, DAP: thấp hơn tốt"
+                " · Ô xanh đậm = tốt nhất, cột xanh lá = Mordell, đường đứt đỏ = tối ưu."
             )
             self._status("Đã so sánh 4 S-box")
         finally:
@@ -318,6 +358,21 @@ class SboxCompareTab(QWidget):
         }
         return export_report(self, "so_sanh_sbox", text=text,
                              csv_data=(COLUMNS, table_rows), payload=payload)
+
+    def handle_copy(self) -> None:
+        if not self._rows:
+            QMessageBox.information(self, "Chưa có dữ liệu",
+                                    "Hãy chạy so sánh trước khi sao chép bảng.")
+            return
+        lines = ["\t".join(COLUMNS)]
+        for label, result in self._rows:
+            lines.append("\t".join([
+                label, str(result["NL"]), f"{result['SAC_avg']:.4f}",
+                f"{result['BIC_NL_avg']:.2f}", f"{result['BIC_SAC']:.4f}",
+                f"{result['LAP']:.4f}", f"{result['DAP']:.4f}",
+            ]))
+        QApplication.clipboard().setText("\n".join(lines))
+        self._status("Đã sao chép bảng so sánh vào clipboard")
 
     def handle_run(self) -> None:
         key = self.key_edit.text()

@@ -46,7 +46,7 @@ Hiển thị
 
 
 class MainWindow(QMainWindow):
-    """Cửa sổ chính chứa 4 tab: mã hóa ảnh, benchmark và so sánh S-box, benchmark ảnh."""
+    """Cửa sổ chính chứa 5 tab: trang chủ, mã hóa ảnh, đánh giá/so sánh S-box, đánh giá ảnh."""
 
     def __init__(self):
         super().__init__()
@@ -60,9 +60,9 @@ class MainWindow(QMainWindow):
         home = HomeTab()
         self.tabs.addTab(home, "Trang chủ")
         self.tabs.addTab(EncryptionTab(), "Mã hóa & Giải mã ảnh")
-        self.tabs.addTab(SboxBenchmarkTab(), "Benchmark S-box")
+        self.tabs.addTab(SboxBenchmarkTab(), "Đánh giá S-box")
         self.tabs.addTab(SboxCompareTab(), "So sánh S-box")
-        self.tabs.addTab(ImageBenchmarkTab(), "Benchmark ảnh mã hóa")
+        self.tabs.addTab(ImageBenchmarkTab(), "Đánh giá ảnh mã hóa")
 
         self.statusBar().showMessage("Sẵn sàng")
 
@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
         )
         run_menu.addSeparator()
         self.act_run_sbox = self._add_action(
-            run_menu, "Chạy Benchmark S-box", "", self._run_sbox
+            run_menu, "Chạy đánh giá S-box", "", self._run_sbox
         )
         self.act_run_compare = self._add_action(
             run_menu, "Chạy so sánh S-box", "", self._run_compare
@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
 
     def _export(self) -> None:
         tab = self.tabs.currentWidget()
-        # Tab Benchmark ảnh: đang ở tab con ECB vs CBC thì xuất báo cáo ECB/CBC
+        # Tab đánh giá ảnh: đang ở tab con ECB vs CBC thì xuất báo cáo ECB/CBC
         result_tabs = getattr(tab, "result_tabs", None)
         if result_tabs is not None and result_tabs.currentIndex() == 2:
             method = getattr(tab, "handle_export_ecb_cbc", None)
@@ -278,7 +278,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "Giới thiệu",
-            "<b>Mordell S-box — Mã hóa ảnh &amp; Benchmark</b><br><br>"
+            "<b>Mordell S-box — Mã hóa ảnh &amp; Đánh giá</b><br><br>"
             "Sinh S-box động từ đường cong Mordell và khóa bí mật, dùng để mã hóa "
             "ảnh (AES-256, CBC/ECB), kèm bộ đánh giá S-box và ảnh mã hóa.<br><br>"
             "PyQt6 · NumPy · Pillow · Matplotlib",

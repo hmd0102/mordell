@@ -16,10 +16,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 import core.aes as A
-from core import GF2n, build_sbox, key_to_polynomial, normalize_key, mordell_points, poly_to_str, format_matrix
+from core import GF2n, build_sbox, key_to_polynomial, mordell_points, poly_to_str, format_matrix
 from core.gf2n import irreducible_polynomials
 
-KEY_STR = "day-la-mot-khoa-bi-mat-vi-du"
+# Khóa mẫu dùng trong ví dụ Chương 2 (dẫn xuất ra f(x) = 505 = 0x1F9).
+KEY_HEX = "0267b6f1785a6c7569ba248674b5e1ea0b6715002abf2c4e91018e2b5fcd6b5f"
+KEY = bytes.fromhex(KEY_HEX)
 IV = bytes.fromhex("f53f3244c51a230ec14c7bd6bdc2734f")
 P1 = bytes([120, 45, 200, 78, 33, 189, 12, 156, 67, 234, 90, 5, 201, 88, 150, 60])
 
@@ -31,8 +33,8 @@ def hx(b: bytes) -> str:
 
 def main() -> dict:
     out = {}
-    K = normalize_key(KEY_STR)
-    print(f"K_demo = SHA-256('{KEY_STR}') = {hx(K)}")
+    K = KEY
+    print(f"K_demo = {hx(K)}")
     B0 = hashlib.sha256(K + (0).to_bytes(4, "big")).digest()
     print(f"B0 = SHA-256(K || 0)       = {hx(B0)}")
 
